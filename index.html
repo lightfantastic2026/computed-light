@@ -1,20 +1,286 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Computed Light</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
 <style>
-:root{--bg:#0b0d12;--panel:#161a22;--ink:#f6f7f9;--muted:#c9ced8;--accent:#ffb84d;--line:#3a4150;color-scheme:dark}
-*{box-sizing:border-box}html,body{background:var(--bg);color:var(--ink)}
-body{margin:0;font:18px/1.5 "IBM Plex Sans",Arial,sans-serif}
-.wrap{max-width:760px;margin:0 auto;padding:32px 16px 48px;display:flex;flex-direction:column;gap:16px}
-h1{font:800 clamp(2.2rem,8vw,3.4rem)/1 "Syne","Arial Black",Arial,sans-serif;margin:0}
-p{margin:0;color:var(--muted)}
-a.card{display:block;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:18px 20px;color:var(--ink);text-decoration:none}
-a.card:hover,a.card:focus-visible{border-color:var(--accent);outline:none}
-a.card b{display:block;color:var(--accent);font-size:1.25rem}
-</style></head><body><div class="wrap">
-<h1>Computed Light</h1>
-<p>Light-field photos you can refocus after the fact. Taken with a Lytro Illum.</p>
-<a class="card" href="living-pictures/"><b>Living Pictures →</b>Tap to refocus. Slide to change depth of field.</a>
-<a class="card" href="light-field/"><b>Inside a Light Field →</b>Drag or tilt your phone to look around, then refocus with light-field math.</a>
-</div></body></html>
+/* One viewer: tap = refocus, drag/tilt = look around, slider = depth of field. Dark, high-contrast on purpose. */
+:root{--bg:#0b0d12;--panel:#161a22;--ink:#f6f7f9;--muted:#c9ced8;--accent:#ffb84d;--line:#3a4150;
+  --display:"Syne","Arial Black",Arial,sans-serif;--body:"IBM Plex Sans",Arial,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--body);font-size:18px;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,7vw,3.2rem);line-height:1;margin:0}
+.sub{color:var(--muted);margin:4px 0 0;font-size:1.05rem;max-width:65ch}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{font:600 1rem var(--body);color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:999px;padding:10px 18px;min-height:48px;cursor:pointer}
+.pill[aria-pressed="true"],.pill[aria-selected="true"]{background:var(--accent);color:#111;border-color:var(--accent)}
+button:focus-visible,input:focus-visible,.stage:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.stage{position:relative;width:100%;margin-inline:auto;border-radius:12px;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none;cursor:crosshair}
+.stage canvas,.stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.stage img{pointer-events:none}
+.ring{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:3px solid var(--accent);border-radius:50%;box-shadow:0 0 0 2px #000;pointer-events:none;opacity:0;transform:scale(1.6);transition:opacity .25s,transform .35s}
+.ring.show{opacity:1;transform:scale(1)}
+.hint{position:absolute;left:12px;bottom:12px;right:12px;width:max-content;max-width:calc(100% - 24px);background:rgba(0,0,0,.8);font-weight:600;padding:8px 14px;border-radius:8px;pointer-events:none;font-size:1rem}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:600;background:#000;padding:16px;text-align:center}
+.fsbtn{position:absolute;left:12px;top:12px;z-index:5;display:flex;align-items:center;gap:8px;font:700 1rem var(--body);color:var(--ink);background:rgba(0,0,0,.78);border:2px solid var(--line);border-radius:10px;padding:8px 14px;min-height:48px;cursor:pointer}
+.fsbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round}
+.stage.full{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;aspect-ratio:auto!important;border-radius:0!important;margin:0!important;z-index:1000}
+body.has-full{overflow:hidden}
+.controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 16px}
+.controls span{font-weight:600}.ctl-name{color:var(--accent);min-width:8.5em}
+@media (max-width:560px){.controls{grid-template-columns:auto 1fr auto}.ctl-name{grid-column:1/-1;min-width:0}}
+input[type=range]{width:100%;min-width:0;height:44px;accent-color:var(--accent)}
+.status{margin:0;font-weight:600;color:var(--accent);min-height:1.5em}
+.caption,.note{margin:0;color:var(--muted);max-width:65ch}
+.note{font-size:.95rem}
+.how{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 18px}
+.how h2{font-family:var(--display);font-size:1.3rem;margin:0 0 6px}
+.how p{margin:0;max-width:65ch}.how p+p{margin-top:8px}
+.credit{color:var(--muted);font-size:.95rem;margin:0}
+a{color:var(--accent)}
+@media (prefers-reduced-motion:reduce){.ring{transition:none}}
+</style></head><body>
+<div class="wrap">
+  <header>
+    <h1>Computed Light</h1>
+    <p class="sub">Each photo was taken once on a Lytro light-field camera. It recorded 196 tiny viewpoints at once, so you can change the focus and the angle afterwards.</p>
+  </header>
+  <div class="row" role="tablist" aria-label="Photos" id="tabs"></div>
+  <div class="stage" id="stage" tabindex="0" role="img" aria-describedby="status">
+    <img id="poster" alt="">
+    <canvas id="cv"></canvas>
+    <div class="loading" id="loading">Loading photo…</div>
+    <div class="ring" id="ring"></div>
+    <button type="button" class="fsbtn" id="fsBtn" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fsIcon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span id="fsLabel">Full screen</span></button>
+    <div class="hint" id="hint">Tap to focus · Drag to look around</div>
+  </div>
+  <div class="controls">
+    <span class="ctl-name">Depth of field</span><span aria-hidden="true">Shallow</span>
+    <input type="range" id="dof" min="0" max="100" step="1" value="0" aria-label="Depth of field, shallow to deep">
+    <span aria-hidden="true">Deep</span>
+  </div>
+  <div class="row">
+    <button type="button" class="pill" id="tiltBtn" aria-pressed="false" hidden>Use phone tilt</button>
+    <p class="note" id="tiltNote">Tap anything to focus on it. Drag to peek around it.</p>
+  </div>
+  <p class="status" id="status" aria-live="polite"></p>
+  <p class="caption" id="caption"></p>
+  <div class="how">
+    <h2>How it works</h2>
+    <p>A light-field camera puts thousands of tiny lenses in front of its sensor, so one shot records the scene from 196 slightly different spots inside the lens. This page uses 64 of them.</p>
+    <p><b>Drag or tilt</b> moves your viewpoint between them, so near things slide past far ones. <b>Tap</b> lines all the viewpoints up at that distance and averages them: what's there stays sharp and everything else blurs. <b>Deep</b> depth of field uses fewer viewpoints, like stopping down a lens. It's computed live on your phone.</p>
+  </div>
+  <p class="credit">Cat in the Grass, Camera Generations and Truth &amp; Art: shot by Kristina Mullins on a Lytro Illum, decoded from the raw sensor files with the camera's own factory calibration. Through the Grille and Spring Blossoms: <a href="https://lightfields.stanford.edu/LF2016.html" target="_blank" rel="noopener">Stanford Lytro Light Field Archive</a> (Sunder Raj, Lowney, Shah &amp; Wetzstein, 2016). Earlier versions: <a href="living-pictures/">Living Pictures</a> · <a href="light-field/">Inside a Light Field</a>.</p>
+</div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), cv = $("cv"), ring = $("ring");
+  const say = t => { $("status").textContent = t; };
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- WebGL: synthetic aperture from an 8x8 atlas of viewpoints ----------
+  const gl = cv.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: false });
+  const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
+  const FS = `precision highp float;varying vec2 uv;uniform sampler2D A;uniform vec2 C;uniform float S,R;uniform vec2 VS,TS;
+  void main(){vec3 acc=vec3(0.);float ws=0.;vec2 px=uv*VS;
+   for(int i=0;i<8;i++){for(int j=0;j<8;j++){
+     vec2 d=vec2(float(j),float(i))-C; float w;
+     if(R<.75){w=max(0.,1.-abs(d.x))*max(0.,1.-abs(d.y));}            /* pinhole: blend the nearest views */
+     else{w=clamp(R+.5-length(d),0.,1.);}                               /* aperture: a soft-edged disk */
+     if(w>0.){vec2 q=clamp(px-S*d,vec2(1.),VS-1.);
+       vec2 t=(vec2(float(j),float(i))+q/VS)/8.;
+       acc+=w*texture2D(A,t).rgb;ws+=w;}}}
+   gl_FragColor=vec4(acc/max(ws,1e-4),1.);}`;
+  let prog = null, U = {}, tex = null;
+  function initGL(){
+    if (!gl) return false;
+    const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(o); return o; };
+    try {
+      prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw "link";
+    } catch (e) { return false; }
+    gl.useProgram(prog);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    ["A","C","S","R","VS","TS"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+    tex = gl.createTexture();
+    return gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4000;
+  }
+  const glOK = initGL();
+
+  // ---------- state ----------
+  let scenes = [], cur = null, ready = false;
+  const MID = 3.5;
+  let cu = MID, cv_ = MID, slope = 0, slopeT = 0, radius = 3.5;
+  let raf = 0;
+  function draw(){
+    raf = 0;
+    if (!ready) return;
+    gl.viewport(0, 0, cv.width, cv.height);
+    gl.uniform2f(U.C, cu, cv_); gl.uniform1f(U.S, slope); gl.uniform1f(U.R, radius);
+    gl.uniform2f(U.VS, cur.tile[0], cur.tile[1]); gl.uniform2f(U.TS, cur.tile[0], cur.tile[1]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+  const redraw = () => { if (!raf) raf = requestAnimationFrame(draw); };
+
+  // smooth rack focus toward slopeT
+  let rackRaf = 0;
+  function rack(){
+    rackRaf = 0;
+    const d = slopeT - slope;
+    if (Math.abs(d) < 0.005 || reduce){ slope = slopeT; redraw(); return; }
+    slope += d * 0.18; redraw(); rackRaf = requestAnimationFrame(rack);
+  }
+  const focusTo = s => { slopeT = s; if (!rackRaf) rackRaf = requestAnimationFrame(rack); };
+
+  // depth of field slider: 0 = shallow (wide aperture, all 64 views), 100 = deep (pinhole)
+  function setDof(val){
+    radius = 3.6 * (1 - val / 100);
+    $("dof").value = val; redraw();
+  }
+  $("dof").addEventListener("input", e => { setDof(+e.target.value); const v = +e.target.value; say(`Depth of field: ${v < 25 ? "shallow" : v < 60 ? "medium" : v < 95 ? "deep" : "everything sharp"}`); });
+
+  // ---------- loading a scene ----------
+  function size(){
+    if (!cur) return;
+    const b = stage.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+    const sa = cur.w / cur.h, ba = b.width / b.height;
+    let w = b.width, h = b.height; if (ba > sa) w = h * sa; else h = w / sa;
+    cv.style.width = w + "px"; cv.style.height = h + "px";
+    cv.style.left = (b.width - w) / 2 + "px"; cv.style.top = (b.height - h) / 2 + "px";
+    cv.width = Math.round(Math.min(w * dpr, cur.tile[0] * 1.5)); cv.height = Math.round(cv.width / sa);
+    redraw();
+  }
+  addEventListener("resize", size);
+  function load(s){
+    cur = s; ready = false;
+    stage.style.aspectRatio = `${s.w} / ${s.h}`;
+    stage.style.width = `min(100%, calc(72vh * ${(s.w / s.h).toFixed(4)}))`;
+    stage.setAttribute("aria-label", `${s.title}. Light-field photo you can refocus and look around.`);
+    $("caption").textContent = s.caption;
+    [...$("tabs").children].forEach(b => b.setAttribute("aria-selected", b.dataset.id === s.id));
+    $("poster").src = s.poster; $("poster").hidden = false; cv.hidden = true;
+    cu = cv_ = MID;
+    const mid = s.slopes[Math.floor(s.slopes.length / 2)];
+    slope = slopeT = mid;
+    if (!glOK){ $("loading").hidden = true; $("tiltNote").textContent = "This browser can't run the live refocus, so you're seeing one still view."; return; }
+    $("loading").hidden = false; $("loading").textContent = "Loading photo…";
+    const im = new Image();
+    im.onload = () => {
+      if (cur !== s) return;
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, im);
+      gl.uniform1i(U.A, 0);
+      ready = true; $("loading").hidden = true; $("poster").hidden = true; cv.hidden = false;
+      size(); say(`${s.title}: tap anything to focus on it`);
+    };
+    im.onerror = () => { $("loading").textContent = "The photo didn't load. Check your connection and reload."; };
+    im.src = s.atlas;
+  }
+
+  // ---------- pointer: tap = focus, drag = look around ----------
+  let down = null, moved = false;
+  const span = 3.5;   // how far the viewpoint can move from the middle
+  function clampView(){ cu = Math.max(0, Math.min(7, cu)); cv_ = Math.max(0, Math.min(7, cv_)); }
+  stage.addEventListener("pointerdown", e => {
+    if (!cur || e.target.closest(".fsbtn")) return;
+    stage.setPointerCapture(e.pointerId); down = { x: e.clientX, y: e.clientY, u: cu, v: cv_ }; moved = false;
+    $("hint").hidden = true;
+  });
+  stage.addEventListener("pointermove", e => {
+    if (!down) return;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if (!moved && Math.hypot(dx, dy) < 8) return;
+    moved = true;
+    const b = cv.getBoundingClientRect();
+    cu = down.u + dx / b.width * span * 2.4; cv_ = down.v + dy / b.height * span * 2.4; clampView(); redraw();
+  });
+  function springBack(){
+    if (tiltOn) return;
+    const step = () => {
+      cu += (MID - cu) * 0.15; cv_ += (MID - cv_) * 0.15; redraw();
+      if (Math.abs(cu - MID) + Math.abs(cv_ - MID) > 0.01 && !down) requestAnimationFrame(step); else if (!down){ cu = cv_ = MID; redraw(); }
+    };
+    if (reduce){ cu = cv_ = MID; redraw(); } else requestAnimationFrame(step);
+  }
+  stage.addEventListener("pointerup", e => {
+    if (!down) return;
+    const wasMoved = moved; down = null;
+    if (wasMoved){ springBack(); return; }
+    const b = cv.getBoundingClientRect();
+    const x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    const sb = stage.getBoundingClientRect();
+    ring.style.left = e.clientX - sb.left + "px"; ring.style.top = e.clientY - sb.top + "px";
+    ring.classList.remove("show"); void ring.offsetWidth; ring.classList.add("show");
+    setTimeout(() => ring.classList.remove("show"), 700);
+    const g = cur.grid, c = Math.min(g.cols - 1, Math.floor(x * g.cols)), r = Math.min(g.rows - 1, Math.floor(y * g.rows));
+    const k = g.data.charCodeAt(r * g.cols + c) - 48;
+    focusTo(cur.slopes[k]);
+    const n = cur.slopes.length - 1, t = k / n;
+    say(`Focused ${t > .66 ? "near" : t > .33 ? "in the middle" : "far"}`);
+  });
+  stage.addEventListener("pointercancel", () => { down = null; springBack(); });
+  // keyboard: arrows look around, + / - (or PageUp/PageDown) focus
+  stage.addEventListener("keydown", e => {
+    if (!cur) return;
+    const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (d){ e.preventDefault(); cu += d[0]; cv_ += d[1]; clampView(); redraw(); say("Looking around"); return; }
+    const i = cur.slopes.indexOf(cur.slopes.reduce((a, b) => Math.abs(b - slopeT) < Math.abs(a - slopeT) ? b : a));
+    if (e.key === "+" || e.key === "=" || e.key === "PageUp"){ e.preventDefault(); focusTo(cur.slopes[Math.min(cur.slopes.length - 1, i + 1)]); say("Focus nearer"); }
+    if (e.key === "-" || e.key === "PageDown"){ e.preventDefault(); focusTo(cur.slopes[Math.max(0, i - 1)]); say("Focus farther"); }
+    if (e.key === "0"){ cu = cv_ = MID; redraw(); }
+  });
+
+  // ---------- phone tilt (works when the page is opened on its own, not inside another site) ----------
+  let tiltOn = false, base = null, got = false;
+  function onTilt(e){
+    if (e.beta == null || e.gamma == null) return;
+    got = true; if (!base) base = { b: e.beta, g: e.gamma };
+    cu = MID + (e.gamma - base.g) / 20 * span; cv_ = MID + (e.beta - base.b) / 20 * span; clampView(); redraw();
+  }
+  if (window.self === window.top) $("tiltBtn").hidden = false;
+  $("tiltBtn").addEventListener("click", async () => {
+    const off = msg => { removeEventListener("deviceorientation", onTilt); tiltOn = false; $("tiltBtn").setAttribute("aria-pressed", "false"); $("tiltNote").textContent = msg; springBack(); };
+    if (tiltOn) return off("Tilt off. Drag to look around.");
+    try {
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function"){
+        if (await DeviceOrientationEvent.requestPermission() !== "granted") throw 0;
+      }
+      base = null; got = false; tiltOn = true; addEventListener("deviceorientation", onTilt);
+      $("tiltBtn").setAttribute("aria-pressed", "true"); $("tiltNote").textContent = "Tilt gently to look around. Tap to focus.";
+      setTimeout(() => { if (tiltOn && !got) off("Tilt isn't available here. Drag instead."); }, 1500);
+    } catch { off("Tilt isn't available here. Drag instead."); }
+  });
+
+  // ---------- full screen ----------
+  (() => {
+    const btn = $("fsBtn"), OPEN = "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", CLOSE = "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5";
+    let real = false;
+    const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+    function setUI(on){ stage.classList.toggle("full", on); document.body.classList.toggle("has-full", on); btn.setAttribute("aria-pressed", on);
+      $("fsLabel").textContent = on ? "Exit full screen" : "Full screen"; $("fsIcon").setAttribute("d", on ? CLOSE : OPEN); setTimeout(size, 60); }
+    async function enter(){ setUI(true); try { const r = stage.requestFullscreen || stage.webkitRequestFullscreen; if (r){ await r.call(stage); real = true; setTimeout(size, 120); }
+      if (screen.orientation && screen.orientation.lock && cur && cur.w > cur.h) screen.orientation.lock("landscape").catch(() => {}); } catch {} }
+    function exit(){ setUI(false); real = false; if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document); }
+    btn.addEventListener("pointerdown", e => e.stopPropagation()); btn.addEventListener("pointerup", e => e.stopPropagation());
+    btn.addEventListener("click", e => { e.stopPropagation(); stage.classList.contains("full") ? exit() : enter(); });
+    const sync = () => { if (!fsEl() && real){ real = false; setUI(false); } };
+    document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && stage.classList.contains("full")) exit(); });
+  })();
+
+  setDof(0);
+  fetch("scenes.json?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw 0; return r.json(); }).then(d => {
+    scenes = d.scenes;
+    scenes.forEach(s => { const b = document.createElement("button"); b.type = "button"; b.className = "pill"; b.role = "tab"; b.textContent = s.title; b.dataset.id = s.id; b.addEventListener("click", () => load(s)); $("tabs").appendChild(b); });
+    load(scenes[0]);
+  }).catch(() => { $("loading").textContent = "The photos didn't load. Check your connection and reload."; });
+})();
+</script>
+</body></html>

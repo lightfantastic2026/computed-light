@@ -55,14 +55,14 @@ a{color:var(--accent)}
     <button type="button" class="fsbtn" id="fsBtn" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fsIcon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span id="fsLabel">Full screen</span></button>
     <div class="hint" id="hint">Tap to focus · Drag to look around</div>
   </div>
+  <div class="row">
+    <button type="button" class="pill" id="tiltBtn" aria-pressed="false" hidden>Use phone tilt</button>
+    <p class="note" id="tiltNote">Tap anything to focus on it. Drag to peek around it.</p>
+  </div>
   <div class="controls">
     <span class="ctl-name">Depth of field</span><span aria-hidden="true">Shallow</span>
     <input type="range" id="dof" min="0" max="100" step="1" value="0" aria-label="Depth of field, shallow to deep">
     <span aria-hidden="true">Deep</span>
-  </div>
-  <div class="row">
-    <button type="button" class="pill" id="tiltBtn" aria-pressed="false" hidden>Use phone tilt</button>
-    <p class="note" id="tiltNote">Tap anything to focus on it. Drag to peek around it.</p>
   </div>
   <p class="status" id="status" aria-live="polite"></p>
   <p class="caption" id="caption"></p>
@@ -71,7 +71,7 @@ a{color:var(--accent)}
     <p>A light-field camera puts thousands of tiny lenses in front of its sensor, so one shot records the scene from 196 slightly different spots inside the lens. This page uses 64 of them.</p>
     <p><b>Drag or tilt</b> moves your viewpoint between them, so near things slide past far ones. <b>Tap</b> lines all the viewpoints up at that distance and averages them: what's there stays sharp and everything else blurs. <b>Deep</b> depth of field uses fewer viewpoints, like stopping down a lens. It's computed live on your phone.</p>
   </div>
-  <p class="credit">Cat in the Grass, Camera Generations and Truth &amp; Art: shot by Kristina Mullins on a Lytro Illum, decoded from the raw sensor files with the camera's own factory calibration. Through the Grille and Spring Blossoms: <a href="https://lightfields.stanford.edu/LF2016.html" target="_blank" rel="noopener">Stanford Lytro Light Field Archive</a> (Sunder Raj, Lowney, Shah &amp; Wetzstein, 2016). Earlier versions: <a href="living-pictures/">Living Pictures</a> · <a href="light-field/">Inside a Light Field</a>.</p>
+  <p class="credit">Cat in the Grass and Truth &amp; Art: shot by Kristina Mullins on a Lytro Illum, decoded from the raw sensor files with the camera's own factory calibration. Through the Grille and Spring Blossoms: <a href="https://lightfields.stanford.edu/LF2016.html" target="_blank" rel="noopener">Stanford Lytro Light Field Archive</a> (Sunder Raj, Lowney, Shah &amp; Wetzstein, 2016). Earlier versions: <a href="living-pictures/">Living Pictures</a> · <a href="light-field/">Inside a Light Field</a>.</p>
 </div>
 <script>
 (() => {

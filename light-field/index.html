@@ -1,0 +1,286 @@
+<title>Inside a Light Field</title>
+<style>
+/* Layout: same dark viewfinder look as Living Pictures; scene tabs, mode switch, photo stage, sliders below. Single dark theme on purpose (high contrast). */
+:root{
+  --bg:#0b0d12; --panel:#161a22; --ink:#f6f7f9; --muted:#c9ced8; --accent:#ffb84d; --line:#3a4150;
+  --display:"Syne","Arial Black",Arial,sans-serif; --body:"IBM Plex Sans",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--body);font-size:18px;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:4px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,7vw,3.2rem);line-height:1;margin:0}
+.sub{color:var(--muted);margin:0;font-size:1.05rem;max-width:65ch}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.pill{font:600 1rem var(--body);color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:999px;padding:10px 18px;min-height:48px;cursor:pointer}
+.pill[aria-pressed="true"],.pill[aria-selected="true"]{background:var(--accent);color:#111;border-color:var(--accent)}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:0;border:2px solid var(--line);border-radius:12px;overflow:hidden}
+.modes button{font:700 1.05rem var(--body);color:var(--ink);background:var(--panel);border:0;padding:12px;min-height:52px;cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--accent);color:#111}
+button:focus-visible,input:focus-visible,.stage:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.stage{position:relative;width:100%;margin-inline:auto;border-radius:12px;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none}
+.stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none;-webkit-user-drag:none}
+.stage.look{cursor:grab}.stage.look:active{cursor:grabbing}.stage.focus{cursor:crosshair}
+.ring{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:3px solid var(--accent);border-radius:50%;box-shadow:0 0 0 2px #000;pointer-events:none;opacity:0;transform:scale(1.6);transition:opacity .25s,transform .35s}
+.ring.show{opacity:1;transform:scale(1)}
+.dot{position:absolute;right:12px;top:12px;width:72px;height:72px;border-radius:50%;background:rgba(0,0,0,.6);border:2px solid var(--line);pointer-events:none}
+.dot i{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--accent);left:50%;top:50%}
+.hint{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.8);color:var(--ink);font-weight:600;padding:8px 14px;border-radius:8px;pointer-events:none;font-size:1rem}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:600;background:#000}
+.controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 16px}
+.controls span{font-weight:600}
+.ctl-name{color:var(--accent);min-width:7.5em}
+@media (max-width:560px){.controls{grid-template-columns:auto 1fr auto}.ctl-name{grid-column:1 / -1;min-width:0}}
+input[type=range]{width:100%;min-width:0;height:44px;accent-color:var(--accent)}
+.status{margin:0;font-weight:600;color:var(--accent);min-height:1.5em}
+.caption{margin:0;color:var(--muted);max-width:65ch}
+.how{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 18px}
+.how h2{font-family:var(--display);font-size:1.3rem;margin:0 0 6px}
+.how p{margin:0;max-width:65ch}.how p+p{margin-top:8px}
+.credit{color:var(--muted);font-size:.95rem;margin:0}
+a{color:var(--accent)}
+.tilt-note{color:var(--muted);margin:0;font-size:.95rem}
+.fsbtn{position:absolute;left:12px;top:12px;z-index:5;display:flex;align-items:center;gap:8px;font:700 1rem var(--body);color:var(--ink);background:rgba(0,0,0,.78);border:2px solid var(--line);border-radius:10px;padding:8px 14px;min-height:48px;cursor:pointer}
+.fsbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round}
+.stage.full{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;aspect-ratio:auto!important;border-radius:0!important;margin:0!important;z-index:1000}
+body.has-full{overflow:hidden}
+@media (prefers-reduced-motion:reduce){.ring{transition:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Sans:wght@400;600;700&display=swap">
+
+<div class="wrap">
+  <header>
+    <h1>Inside a Light Field</h1>
+    <p class="sub">A Lytro photo isn't one picture. It's 196 tiny pictures taken from slightly different spots across the lens. Look around between them, or blend them to refocus.</p>
+  </header>
+  <div class="row" role="tablist" aria-label="Photos" id="tabs"></div>
+  <div class="modes" role="group" aria-label="Mode">
+    <button type="button" id="mLook" aria-pressed="true">Look around</button>
+    <button type="button" id="mFocus" aria-pressed="false">Refocus</button>
+  </div>
+  <div class="stage look" id="stage" tabindex="0" role="img" aria-describedby="status">
+    <img id="view" alt="">
+    <div class="loading" id="loading">Loading viewpoints…</div>
+    <div class="ring" id="ring"></div>
+    <div class="dot" id="dot" aria-hidden="true"><i id="dotI"></i></div>
+    <button type="button" class="fsbtn" id="fsBtn" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fsIcon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span id="fsLabel">Full screen</span></button>
+    <div class="hint" id="hint">Drag across the photo to look around</div>
+  </div>
+
+  <div id="lookCtl" class="row" style="align-items:center">
+    <button type="button" class="pill" id="tiltBtn" hidden>Use phone tilt</button>
+    <button type="button" class="pill" id="centerBtn">Center view</button>
+    <p class="tilt-note" id="tiltNote">Drag across the photo, or use the arrow keys.</p>
+  </div>
+  <div id="focusCtl" hidden>
+    <div class="controls">
+      <span class="ctl-name">Focus</span><span aria-hidden="true">Near</span>
+      <input type="range" id="focus" min="0" max="12" step="1" value="6" aria-label="Focus distance, near to far">
+      <span aria-hidden="true">Far</span>
+    </div>
+    <div class="controls" style="margin-top:12px">
+      <span class="ctl-name">Aperture</span><span aria-hidden="true">Pinhole</span>
+      <input type="range" id="ap" min="0" max="2" step="1" value="2" aria-label="Aperture, pinhole to wide open">
+      <span aria-hidden="true">Wide</span>
+    </div>
+  </div>
+  <p class="status" id="status" aria-live="polite"></p>
+  <p class="caption" id="caption"></p>
+  <div class="how">
+    <h2>How it works</h2>
+    <p><b>Look around</b> shows one of 64 viewpoints from inside the lens opening. They're only millimeters apart, so near things slide against far things, the way they do when you move your head.</p>
+    <p><b>Refocus</b> lines the viewpoints up for a chosen distance and averages them. Whatever sits at that distance stays sharp; everything else blurs away. Use more viewpoints and the "aperture" opens wider. That's real light-field math, done after the photo was taken.</p>
+  </div>
+  <p class="credit">Light fields: <a href="https://lightfields.stanford.edu/LF2016.html" target="_blank" rel="noopener">Stanford Lytro Light Field Archive</a> (Sunder Raj, Lowney, Shah &amp; Wetzstein, 2016), shot on a Lytro Illum. Processed for this page from the archive's decoded files. · <a data-local="../living-pictures/" href="https://claude.ai/artifact/E3he6rCvVzqba7M6dduKkM" target="_blank" rel="noopener">Back to Living Pictures</a></p>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), img = $("view"), ring = $("ring");
+  let scenes = [], cur = null, mode = "look", u = 7, v = 7, fIdx = 6, ap = 2, timer = null, cache = [];
+  const AP_WORDS = ["pinhole (everything sharp)", "medium", "wide open"];
+
+  function src(){
+    if (mode === "look") return `${cur.views.path}${v}_${u}.jpg`;
+    if (ap === 0) return cur.pinhole;
+    return cur.stacks[ap === 1 ? "medium" : "wide"][fIdx];
+  }
+  function draw(){
+    img.src = src();
+    const span = cur.views.max - cur.views.min;
+    $("dotI").style.left = `${(u - cur.views.min) / span * 100}%`;
+    $("dotI").style.top = `${(v - cur.views.min) / span * 100}%`;
+  }
+  function say(t){ $("status").textContent = t; }
+  function focusWords(i){ const t = 1 - i / 12; return t < .3 ? "near" : t < .6 ? "middle" : "far"; }
+  // slider runs near (left) to far (right); stack index 12 = nearest
+  function setFocus(i, announce){
+    fIdx = i; $("focus").value = 12 - i; draw();
+    if (announce) say(`Focus: ${focusWords(i)} · aperture ${AP_WORDS[ap]}`);
+  }
+  function rackTo(t){
+    clearInterval(timer);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches || t === fIdx){ setFocus(t, true); return; }
+    const dir = t > fIdx ? 1 : -1;
+    timer = setInterval(() => { const n = fIdx + dir; setFocus(n, n === t); if (n === t) clearInterval(timer); }, 60);
+  }
+  function setView(nu, nv, announce){
+    const a = cur.views.min, b = cur.views.max;
+    u = Math.max(a, Math.min(b, Math.round(nu))); v = Math.max(a, Math.min(b, Math.round(nv)));
+    draw();
+    if (announce) say(`Viewpoint ${u - a + 1} across, ${v - a + 1} down, of ${b - a + 1}`);
+  }
+  function setMode(m){
+    mode = m; clearInterval(timer);
+    $("mLook").setAttribute("aria-pressed", m === "look"); $("mFocus").setAttribute("aria-pressed", m === "focus");
+    stage.className = "stage " + (m === "look" ? "look" : "focus");
+    $("lookCtl").hidden = m !== "look"; $("focusCtl").hidden = m !== "focus"; $("dot").hidden = m !== "look";
+    $("hint").hidden = false;
+    $("hint").textContent = m === "look" ? "Drag across the photo to look around" : "Tap anything to focus on it";
+    if (m === "focus" && ap === 0) ap = 2, $("ap").value = 2;
+    draw();
+    say(m === "look" ? "Look around mode" : `Refocus mode · aperture ${AP_WORDS[ap]}`);
+  }
+  function load(s){
+    cur = s; u = v = 7; fIdx = 6; ap = 2; $("ap").value = 2;
+    stage.style.aspectRatio = `${s.w} / ${s.h}`; stage.dataset.w = s.w; stage.dataset.h = s.h;
+    stage.style.width = `min(100%, calc(70vh * ${(s.w / s.h).toFixed(4)}))`;
+    stage.setAttribute("aria-label", `${s.title}. Light-field photo.`);
+    $("caption").textContent = s.caption;
+    [...$("tabs").children].forEach(b => b.setAttribute("aria-selected", b.dataset.id === s.id));
+    $("loading").hidden = false;
+    img.onload = () => { $("loading").hidden = true; img.onload = null; };
+    setMode(mode);
+    // preload everything for this scene in the background
+    cache = [];
+    const all = [];
+    for (let y = s.views.min; y <= s.views.max; y++) for (let x = s.views.min; x <= s.views.max; x++) all.push(`${s.views.path}${y}_${x}.jpg`);
+    all.push(...s.stacks.wide, ...s.stacks.medium);
+    all.forEach(p => { const im = new Image(); im.src = p; cache.push(im); });
+  }
+
+  // pointer: drag to look around, tap to refocus
+  let down = null;
+  function rel(e){
+    const b = stage.getBoundingClientRect(), sa = cur.w / cur.h, ba = b.width / b.height;
+    let w = b.width, h = b.height, ox = 0, oy = 0;
+    if (ba > sa){ w = h * sa; ox = (b.width - w) / 2; } else { h = w / sa; oy = (b.height - h) / 2; }
+    return { x: (e.clientX - b.left - ox) / w, y: (e.clientY - b.top - oy) / h, px: e.clientX - b.left, py: e.clientY - b.top };
+  }
+  stage.addEventListener("pointerdown", e => {
+    if (!cur) return; stage.setPointerCapture(e.pointerId);
+    down = { x: e.clientX, y: e.clientY, u, v };
+    $("hint").hidden = true;
+  });
+  stage.addEventListener("pointermove", e => {
+    if (!down || mode !== "look") return;
+    const b = stage.getBoundingClientRect(), span = cur.views.max - cur.views.min;
+    // dragging right moves your viewpoint right
+    setView(down.u + (e.clientX - down.x) / b.width * span * 1.6, down.v + (e.clientY - down.y) / b.height * span * 1.6, false);
+  });
+  stage.addEventListener("pointerup", e => {
+    if (!down) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8; down = null;
+    if (mode === "look"){ if (moved) setView(u, v, true); return; }
+    if (moved) return;
+    const r = rel(e); if (r.x < 0 || r.x > 1 || r.y < 0 || r.y > 1) return;
+    ring.style.left = r.px + "px"; ring.style.top = r.py + "px";
+    ring.classList.remove("show"); void ring.offsetWidth; ring.classList.add("show");
+    setTimeout(() => ring.classList.remove("show"), 700);
+    const g = cur.grid, c = Math.min(g.cols - 1, Math.floor(r.x * g.cols)), rr = Math.min(g.rows - 1, Math.floor(r.y * g.rows));
+    if (ap === 0){ ap = 2; $("ap").value = 2; }
+    rackTo(g.data.charCodeAt(rr * g.cols + c) - 48);
+  });
+  stage.addEventListener("keydown", e => {
+    if (!cur) return;
+    const k = e.key;
+    if (mode === "look"){
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
+      if (d){ e.preventDefault(); setView(u + d[0], v + d[1], true); }
+    } else if (k === "ArrowRight" || k === "ArrowLeft"){
+      e.preventDefault(); rackTo(Math.max(0, Math.min(12, fIdx + (k === "ArrowRight" ? -1 : 1))));
+    }
+  });
+  $("focus").addEventListener("input", e => { clearInterval(timer); if (ap === 0){ ap = 2; $("ap").value = 2; } setFocus(12 - +e.target.value, true); });
+  $("ap").addEventListener("input", e => { ap = +e.target.value; draw(); say(`Aperture: ${AP_WORDS[ap]}`); });
+  $("mLook").addEventListener("click", () => setMode("look"));
+  $("mFocus").addEventListener("click", () => setMode("focus"));
+  $("centerBtn").addEventListener("click", () => setView(7, 7, true));
+
+  if (window.self === window.top && "DeviceOrientationEvent" in window && matchMedia("(pointer: coarse)").matches) $("tiltBtn").hidden = false;
+  // phone tilt: works where the browser shares motion data with this page; otherwise dragging still works
+  let tiltOn = false, base = null, gotEvent = false;
+  function onTilt(e){
+    if (e.beta == null || e.gamma == null) return;
+    gotEvent = true;
+    if (!base) base = { b: e.beta, g: e.gamma };
+    const span = cur.views.max - cur.views.min, mid = (cur.views.min + cur.views.max) / 2;
+    setView(mid + (e.gamma - base.g) / 25 * span / 2, mid + (e.beta - base.b) / 25 * span / 2, false);
+  }
+  if ($("tiltBtn")) $("tiltBtn").addEventListener("click", async () => {
+    if (tiltOn){ window.removeEventListener("deviceorientation", onTilt); tiltOn = false; $("tiltBtn").setAttribute("aria-pressed", "false"); $("tiltNote").textContent = "Tilt off. Drag instead."; return; }
+    try {
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function"){
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r !== "granted") throw new Error("denied");
+      }
+      base = null; gotEvent = false; tiltOn = true;
+      window.addEventListener("deviceorientation", onTilt);
+      $("tiltBtn").setAttribute("aria-pressed", "true");
+      $("tiltNote").textContent = "Tilt your phone gently.";
+      setTimeout(() => { if (tiltOn && !gotEvent){ window.removeEventListener("deviceorientation", onTilt); tiltOn = false; $("tiltBtn").setAttribute("aria-pressed", "false"); $("tiltNote").textContent = "Tilt isn't available in this viewer. Drag across the photo instead."; } }, 1500);
+    } catch {
+      $("tiltNote").textContent = "Tilt isn't available in this viewer. Drag across the photo instead.";
+    }
+  });
+
+  fetch("scenes.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+    scenes = d.scenes;
+    scenes.forEach(s => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pill"; b.role = "tab"; b.textContent = s.title; b.dataset.id = s.id;
+      b.addEventListener("click", () => load(s)); $("tabs").appendChild(b);
+    });
+    load(scenes[0]);
+  }).catch(() => { $("loading").textContent = "The photos didn't load. Check your connection and reload."; });
+  // full screen: real full screen where the browser allows it, otherwise fill the window
+  (() => {
+    const btn = document.getElementById("fsBtn"), st = document.getElementById("stage");
+    const OPEN = "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", CLOSE = "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5";
+    btn.addEventListener("pointerdown", e => e.stopPropagation());
+    btn.addEventListener("pointerup", e => e.stopPropagation());
+    let real = false;
+    const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+    function setUI(on){
+      st.classList.toggle("full", on); document.body.classList.toggle("has-full", on);
+      btn.setAttribute("aria-pressed", on);
+      document.getElementById("fsLabel").textContent = on ? "Exit full screen" : "Full screen";
+      document.getElementById("fsIcon").setAttribute("d", on ? CLOSE : OPEN);
+    }
+    async function enter(){
+      setUI(true);
+      try {
+        const req = st.requestFullscreen || st.webkitRequestFullscreen;
+        if (req){ await req.call(st); real = true; }
+        if (screen.orientation && screen.orientation.lock && st.dataset.w > st.dataset.h) screen.orientation.lock("landscape").catch(() => {});
+      } catch {}
+    }
+    function exit(){
+      setUI(false);
+      real = false;
+      if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+    btn.addEventListener("click", e => { e.stopPropagation(); st.classList.contains("full") ? exit() : enter(); });
+    const sync = () => { if (!fsEl() && real){ real = false; setUI(false); } };
+    document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && st.classList.contains("full")) exit(); });
+  })();
+
+  // when hosted on its own (not inside Claude), link between the two pages directly
+  if (window.self === window.top) document.querySelectorAll("a[data-local]").forEach(a => { a.href = a.dataset.local; a.removeAttribute("target"); });
+})();
+</script>

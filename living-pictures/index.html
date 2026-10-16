@@ -1,0 +1,212 @@
+<title>Living Pictures</title>
+<style>
+/* Layout: one full-width photo stage, scene tabs above, focus slider below; dark camera-viewfinder look, single theme on purpose */
+:root{
+  --bg:#0b0d12; --panel:#161a22; --ink:#f6f7f9; --muted:#c9ced8; --accent:#ffb84d; --line:#3a4150;
+  --display:"Syne","Arial Black",Arial,sans-serif; --body:"IBM Plex Sans",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--body);font-size:18px;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:20px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:4px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,7vw,3.2rem);line-height:1;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0;font-size:1.05rem}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button{font:600 1rem var(--body);color:var(--ink);background:var(--panel);border:2px solid var(--line);border-radius:999px;padding:10px 18px;min-height:48px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:#111;border-color:var(--accent)}
+button:focus-visible,input:focus-visible,.stage:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.stage{position:relative;width:100%;margin-inline:auto;border-radius:12px;overflow:hidden;background:#000;touch-action:manipulation;cursor:crosshair;user-select:none;-webkit-user-select:none}
+.stage img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;pointer-events:none;-webkit-user-drag:none}
+.stage img.on{opacity:1}
+.ring{position:absolute;width:64px;height:64px;margin:-32px 0 0 -32px;border:3px solid var(--accent);border-radius:50%;box-shadow:0 0 0 2px #000;pointer-events:none;opacity:0;transform:scale(1.6);transition:opacity .25s,transform .35s}
+.ring.show{opacity:1;transform:scale(1)}
+.hint{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.78);color:var(--ink);font-weight:600;padding:8px 14px;border-radius:8px;pointer-events:none;font-size:1rem}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--ink);background:#000}
+.controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:12px;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 16px}
+.controls span{font-weight:600}
+.ctl-name{color:var(--accent);min-width:8.5em}
+@media (max-width:560px){.controls{grid-template-columns:auto 1fr auto}.ctl-name{grid-column:1 / -1;min-width:0}}
+input[type=range]{width:100%;min-width:0;height:44px;accent-color:var(--accent)}
+.status{margin:0;font-weight:600;color:var(--accent);min-height:1.5em}
+.caption{margin:0;color:var(--muted);max-width:65ch}
+.how{background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:14px 18px}
+.how h2{font-family:var(--display);font-size:1.3rem;margin:0 0 6px}
+.how p{margin:0;max-width:65ch}
+.how p+p{margin-top:8px}
+.error{background:#3a1414;border:2px solid #ff7a7a;color:#fff;padding:14px;border-radius:12px}
+.fsbtn{position:absolute;left:12px;top:12px;z-index:5;display:flex;align-items:center;gap:8px;font:700 1rem var(--body);color:var(--ink);background:rgba(0,0,0,.78);border:2px solid var(--line);border-radius:10px;padding:8px 14px;min-height:48px;cursor:pointer}
+.fsbtn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round}
+.stage.full{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;aspect-ratio:auto!important;border-radius:0!important;margin:0!important;z-index:1000}
+body.has-full{overflow:hidden}
+@media (prefers-reduced-motion:reduce){.ring{transition:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Sans:wght@400;600&display=swap">
+
+<div class="wrap">
+  <header>
+    <h1>Living Pictures</h1>
+    <p class="sub">Each photo was taken once with a Lytro Illum light-field camera. You choose the focus now.</p>
+  </header>
+  <div class="tabs" role="tablist" aria-label="Photos" id="tabs"></div>
+  <div class="stage" id="stage" tabindex="0" role="img" aria-describedby="status">
+    <div class="loading" id="loading">Loading photos…</div>
+    <div class="ring" id="ring"></div>
+    <button type="button" class="fsbtn" id="fsBtn" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="fsIcon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span id="fsLabel">Full screen</span></button>
+    <div class="hint" id="hint">Tap anywhere to refocus</div>
+  </div>
+  <div class="controls">
+    <span class="ctl-name">Focus</span>
+    <span aria-hidden="true">Near</span>
+    <input type="range" id="focus" min="0" max="1" step="1" value="0" aria-label="Focus distance, near to far">
+    <span aria-hidden="true">Far</span>
+  </div>
+  <div class="controls" id="dofRow">
+    <span class="ctl-name">Depth of field</span>
+    <span aria-hidden="true">Shallow</span>
+    <input type="range" id="dof" min="0" max="3" step="1" value="0" aria-label="Depth of field, shallow to deep">
+    <span aria-hidden="true">Deep</span>
+  </div>
+  <p class="status" id="status" aria-live="polite"></p>
+  <p class="caption" id="caption"></p>
+  <div class="how">
+    <h2>How it works</h2>
+    <p>A light-field camera puts thousands of tiny lenses in front of its sensor, so it records which direction each ray of light came from. Software uses that to rebuild the picture focused at any distance after the shot. Here you're flipping between versions it rendered.</p>
+    <p>The depth-of-field slider goes one step further: it <b>focus-stacks</b> neighboring versions, keeping the sharpest parts of each, until everything from front to back is in focus.</p>
+  </div>
+  <a class="tabs-link" data-local="../light-field/" href="https://claude.ai/artifact/RjeTZhi15v9rvpjwWYdN9w" target="_blank" rel="noopener" style="display:block;background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:14px 18px;color:var(--ink);text-decoration:none;font-weight:600"><span style="color:var(--accent)">Go deeper →</span> Look around inside a light field: drag to see behind things, and refocus with real light-field math.</a>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const stage = $("stage"), tabs = $("tabs"), slider = $("focus"), ring = $("ring");
+  let scenes = [], cur = null, idx = 0, imgs = [], timer = null, hintHidden = false, level = 0;
+  const dofSlider = $("dof"), DOF_WORDS = ["as shot (shallow)", "deeper", "deeper still", "everything sharp"];
+
+  function words(i, n){
+    const t = n > 1 ? i / (n - 1) : 0;
+    return t < .2 ? "near" : t < .45 ? "middle-near" : t < .7 ? "middle-far" : "far";
+  }
+  function show(i, announce){
+    imgs.forEach((im, k) => im.classList.toggle("on", k === i));
+    idx = i; slider.value = i;
+    if (announce) $("status").textContent = `Focus: ${words(i, imgs.length)} (${i + 1} of ${imgs.length})`;
+  }
+  // Rack focus: step through the in-between frames, like turning a focus ring
+  function rackTo(target){
+    clearInterval(timer);
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || target === idx){ show(target, true); return; }
+    const dir = target > idx ? 1 : -1;
+    timer = setInterval(() => {
+      const next = idx + dir;
+      show(next, next === target);
+      if (next === target) clearInterval(timer);
+    }, 55);
+  }
+  function load(s){
+    cur = s; clearInterval(timer);
+    imgs.forEach(im => im.remove()); imgs = [];
+    stage.style.aspectRatio = `${s.w} / ${s.h}`; stage.dataset.w = s.w; stage.dataset.h = s.h;
+    stage.style.width = `min(100%, calc(78vh * ${(s.w / s.h).toFixed(4)}))`;
+    stage.setAttribute("aria-label", `${s.title}. Photo you can refocus.`);
+    $("caption").textContent = s.caption || "";
+    $("loading").hidden = false;
+    slider.max = s.frames.length - 1;
+    let done = 0;
+    s.frames.forEach((src, k) => {
+      const im = new Image(); im.alt = ""; im.decoding = "async";
+      im.onload = im.onerror = () => { if (++done === s.frames.length) $("loading").hidden = true; };
+      im.src = src; stage.insertBefore(im, ring); imgs.push(im);
+    });
+    level = 0; dofSlider.value = 0;
+    const levels = s.dof ? s.dof.length : 1;
+    $("dofRow").hidden = levels < 2; dofSlider.max = levels - 1;
+    if (levels > 1) setTimeout(() => s.dof.slice(1).flat().forEach(src => { const p = new Image(); p.src = src; }), 800);
+    show(0, true);
+    [...tabs.children].forEach(b => b.setAttribute("aria-selected", b.dataset.id === s.id));
+  }
+  function frameAt(x, y){
+    const g = cur.grid, c = Math.min(g.cols - 1, Math.floor(x * g.cols)), r = Math.min(g.rows - 1, Math.floor(y * g.rows));
+    return g.data.charCodeAt(r * g.cols + c) - 48;
+  }
+  stage.addEventListener("pointerup", e => {
+    if (!cur) return;
+    const b = stage.getBoundingClientRect();
+    // account for letterboxing from object-fit: contain
+    const sa = cur.w / cur.h, ba = b.width / b.height;
+    let w = b.width, h = b.height, ox = 0, oy = 0;
+    if (ba > sa){ w = h * sa; ox = (b.width - w) / 2; } else { h = w / sa; oy = (b.height - h) / 2; }
+    const x = (e.clientX - b.left - ox) / w, y = (e.clientY - b.top - oy) / h;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    ring.style.left = (e.clientX - b.left) + "px"; ring.style.top = (e.clientY - b.top) + "px";
+    ring.classList.remove("show"); void ring.offsetWidth; ring.classList.add("show");
+    setTimeout(() => ring.classList.remove("show"), 700);
+    if (!hintHidden){ $("hint").hidden = true; hintHidden = true; }
+    rackTo(frameAt(x, y));
+  });
+  stage.addEventListener("keydown", e => {
+    if (!cur) return;
+    if (["ArrowRight","ArrowUp"].includes(e.key)){ e.preventDefault(); rackTo(Math.min(imgs.length - 1, idx + 1)); }
+    if (["ArrowLeft","ArrowDown"].includes(e.key)){ e.preventDefault(); rackTo(Math.max(0, idx - 1)); }
+  });
+  dofSlider.addEventListener("input", () => {
+    if (!cur || !cur.dof) return;
+    level = +dofSlider.value;
+    imgs.forEach((im, k) => { im.src = cur.dof[level][k]; });
+    $("status").textContent = `Depth of field: ${DOF_WORDS[Math.min(level, DOF_WORDS.length - 1)]}`;
+  });
+  slider.addEventListener("input", () => { clearInterval(timer); show(+slider.value, true); });
+
+  fetch("scenes.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+    scenes = d.scenes;
+    scenes.forEach(s => {
+      const b = document.createElement("button");
+      b.type = "button"; b.role = "tab"; b.textContent = s.title; b.dataset.id = s.id;
+      b.addEventListener("click", () => load(s));
+      tabs.appendChild(b);
+    });
+    tabs.hidden = scenes.length < 2;
+    load(scenes[0]);
+  }).catch(() => {
+    $("loading").innerHTML = '<div class="error">The photos didn\'t load. Check your connection and reload the page.</div>';
+  });
+  // full screen: real full screen where the browser allows it, otherwise fill the window
+  (() => {
+    const btn = document.getElementById("fsBtn"), st = document.getElementById("stage");
+    const OPEN = "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", CLOSE = "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5";
+    btn.addEventListener("pointerdown", e => e.stopPropagation());
+    btn.addEventListener("pointerup", e => e.stopPropagation());
+    let real = false;
+    const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+    function setUI(on){
+      st.classList.toggle("full", on); document.body.classList.toggle("has-full", on);
+      btn.setAttribute("aria-pressed", on);
+      document.getElementById("fsLabel").textContent = on ? "Exit full screen" : "Full screen";
+      document.getElementById("fsIcon").setAttribute("d", on ? CLOSE : OPEN);
+    }
+    async function enter(){
+      setUI(true);
+      try {
+        const req = st.requestFullscreen || st.webkitRequestFullscreen;
+        if (req){ await req.call(st); real = true; }
+        if (screen.orientation && screen.orientation.lock && st.dataset.w > st.dataset.h) screen.orientation.lock("landscape").catch(() => {});
+      } catch {}
+    }
+    function exit(){
+      setUI(false);
+      real = false;
+      if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+    btn.addEventListener("click", e => { e.stopPropagation(); st.classList.contains("full") ? exit() : enter(); });
+    const sync = () => { if (!fsEl() && real){ real = false; setUI(false); } };
+    document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && st.classList.contains("full")) exit(); });
+  })();
+
+  // when hosted on its own (not inside Claude), link between the two pages directly
+  if (window.self === window.top) document.querySelectorAll("a[data-local]").forEach(a => { a.href = a.dataset.local; a.removeAttribute("target"); });
+})();
+</script>

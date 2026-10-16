@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Computed Light</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@800&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+:root{--bg:#0b0d12;--panel:#161a22;--ink:#f6f7f9;--muted:#c9ced8;--accent:#ffb84d;--line:#3a4150;color-scheme:dark}
+*{box-sizing:border-box}html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font:18px/1.5 "IBM Plex Sans",Arial,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:32px 16px 48px;display:flex;flex-direction:column;gap:16px}
+h1{font:800 clamp(2.2rem,8vw,3.4rem)/1 "Syne","Arial Black",Arial,sans-serif;margin:0}
+p{margin:0;color:var(--muted)}
+a.card{display:block;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:18px 20px;color:var(--ink);text-decoration:none}
+a.card:hover,a.card:focus-visible{border-color:var(--accent);outline:none}
+a.card b{display:block;color:var(--accent);font-size:1.25rem}
+</style></head><body><div class="wrap">
+<h1>Computed Light</h1>
+<p>Light-field photos you can refocus after the fact. Taken with a Lytro Illum.</p>
+<a class="card" href="living-pictures/"><b>Living Pictures →</b>Tap to refocus. Slide to change depth of field.</a>
+<a class="card" href="light-field/"><b>Inside a Light Field →</b>Drag or tilt your phone to look around, then refocus with light-field math.</a>
+</div></body></html>

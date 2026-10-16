@@ -160,7 +160,7 @@ body.has-full{overflow:hidden}
   });
   slider.addEventListener("input", () => { clearInterval(timer); show(+slider.value, true); });
 
-  fetch("scenes.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
+  fetch("scenes.json?v=" + Date.now(), { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).then(d => {
     scenes = d.scenes;
     scenes.forEach(s => {
       const b = document.createElement("button");

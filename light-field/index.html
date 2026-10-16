@@ -211,7 +211,7 @@ body.has-full{overflow:hidden}
   $("mFocus").addEventListener("click", () => setMode("focus"));
   $("centerBtn").addEventListener("click", () => setView(7, 7, true));
 
-  if (window.self === window.top && "DeviceOrientationEvent" in window && matchMedia("(pointer: coarse)").matches) $("tiltBtn").hidden = false;
+  if (window.self === window.top) $("tiltBtn").hidden = false;
   // phone tilt: works where the browser shares motion data with this page; otherwise dragging still works
   let tiltOn = false, base = null, gotEvent = false;
   function onTilt(e){

@@ -83,14 +83,14 @@ a{color:var(--accent)}
   // ---------- WebGL: synthetic aperture from an 8x8 atlas of viewpoints ----------
   const gl = cv.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: false });
   const VS = "attribute vec2 p;varying vec2 uv;void main(){uv=vec2(p.x*.5+.5,.5-p.y*.5);gl_Position=vec4(p,0.,1.);}";
-  const FS = `precision highp float;varying vec2 uv;uniform sampler2D A;uniform vec2 C;uniform float S,R;uniform vec2 VS,TS;
+  const FS = `precision highp float;varying vec2 uv;uniform sampler2D A;uniform vec2 C;uniform float S,R;uniform vec2 VS,TS;uniform int NV;
   void main(){vec3 acc=vec3(0.);float ws=0.;vec2 px=uv*VS;
-   for(int i=0;i<8;i++){for(int j=0;j<8;j++){
+   for(int i=0;i<10;i++){if(i>=NV)break;for(int j=0;j<10;j++){if(j>=NV)break;
      vec2 d=vec2(float(j),float(i))-C; float w;
      if(R<.75){w=max(0.,1.-abs(d.x))*max(0.,1.-abs(d.y));}            /* pinhole: blend the nearest views */
      else{w=clamp(R+.5-length(d),0.,1.);}                               /* aperture: a soft-edged disk */
      if(w>0.){vec2 q=clamp(px-S*d,vec2(1.),VS-1.);
-       vec2 t=(vec2(float(j),float(i))+q/VS)/8.;
+       vec2 t=(vec2(float(j),float(i))+q/VS)/float(NV);
        acc+=w*texture2D(A,t).rgb;ws+=w;}}}
    gl_FragColor=vec4(acc/max(ws,1e-4),1.);}`;
   let prog = null, U = {}, tex = null;
@@ -105,7 +105,7 @@ a{color:var(--accent)}
     const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, "p"); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    ["A","C","S","R","VS","TS"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+    ["A","C","S","R","VS","TS","NV"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
     tex = gl.createTexture();
     return gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4000;
   }
@@ -113,14 +113,14 @@ a{color:var(--accent)}
 
   // ---------- state ----------
   let scenes = [], cur = null, ready = false;
-  const MID = 3.5;
+  let MID = 3.5;
   let cu = MID, cv_ = MID, slope = 0, slopeT = 0, radius = 3.5;
   let raf = 0;
   function draw(){
     raf = 0;
     if (!ready) return;
     gl.viewport(0, 0, cv.width, cv.height);
-    gl.uniform2f(U.C, cu, cv_); gl.uniform1f(U.S, slope); gl.uniform1f(U.R, radius);
+    gl.uniform1i(U.NV, cur.n || 8); gl.uniform2f(U.C, cu, cv_); gl.uniform1f(U.S, slope); gl.uniform1f(U.R, radius);
     gl.uniform2f(U.VS, cur.tile[0], cur.tile[1]); gl.uniform2f(U.TS, cur.tile[0], cur.tile[1]);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
@@ -138,7 +138,7 @@ a{color:var(--accent)}
 
   // depth of field slider: 0 = shallow (wide aperture, all 64 views), 100 = deep (pinhole)
   function setDof(val){
-    radius = 3.6 * (1 - val / 100);
+    radius = (MID + 0.1) * (1 - val / 100);
     $("dof").value = val; redraw();
   }
   $("dof").addEventListener("input", e => { setDof(+e.target.value); const v = +e.target.value; say(`Depth of field: ${v < 25 ? "shallow" : v < 60 ? "medium" : v < 95 ? "deep" : "everything sharp"}`); });
@@ -163,6 +163,7 @@ a{color:var(--accent)}
     $("caption").textContent = s.caption;
     [...$("tabs").children].forEach(b => b.setAttribute("aria-selected", b.dataset.id === s.id));
     $("poster").src = s.poster; $("poster").hidden = false; cv.hidden = true;
+    MID = ((s.n || 8) - 1) / 2; span = MID; radius = (MID + 0.1) * (1 - $("dof").value / 100);
     cu = cv_ = MID;
     const mid = s.slopes[Math.floor(s.slopes.length / 2)];
     slope = slopeT = mid;
@@ -185,8 +186,8 @@ a{color:var(--accent)}
 
   // ---------- pointer: tap = focus, drag = look around ----------
   let down = null, moved = false;
-  const span = 3.5;   // how far the viewpoint can move from the middle
-  function clampView(){ cu = Math.max(0, Math.min(7, cu)); cv_ = Math.max(0, Math.min(7, cv_)); }
+  let span = 3.5;   // how far the viewpoint can move from the middle
+  function clampView(){ const dx = cu - MID, dy = cv_ - MID, r = Math.hypot(dx, dy); if (r > MID){ cu = MID + dx / r * MID; cv_ = MID + dy / r * MID; } }   // stay inside the round lens opening
   stage.addEventListener("pointerdown", e => {
     if (!cur || e.target.closest(".fsbtn")) return;
     stage.setPointerCapture(e.pointerId); down = { x: e.clientX, y: e.clientY, u: cu, v: cv_ }; moved = false;
